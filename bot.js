@@ -2,6 +2,10 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const moment = require('moment');
+const uzMonths = [
+  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+  'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
+];
 
 const token = process.env.BOT_TOKEN;
 const adminChatId = process.env.ADMIN_CHAT_ID;
@@ -85,30 +89,38 @@ bot.on('message', msg => {
 
   const state = users[id];
 
-  if (state.step === 'awaiting_name') {
-    state.name = text;
-    state.step = 'awaiting_date';
+if (state.step === 'awaiting_name') {
+  state.name = text;
+  state.step = 'awaiting_date';
 
-    // Bugungi sana inline tugma bilan
-    const today = moment().format('YYYY.MM.DD');
+  const today = moment();
+const buttons = [];
+let row = [];
 
-    // Band qilingan vaqtlar shu sana uchun
-    const bookings = getBookings().filter(b => b.date === parseDate(today));
-    let busyTimes = 'Band qilingan vaqtlar:\n';
-    if (bookings.length === 0) busyTimes += 'Hozircha mavjud emas.';
-    else {
-      bookings.forEach(b => {
-        busyTimes += `- ${b.from} - ${b.to}\n`;
-      });
-    }
+for (let i = 0; i < 15; i++) {
+  const date = today.clone().add(i, 'days');
+  const fullDate = date.format('YYYY.MM.DD');
+  const dayOnly = date.format('DD');
 
-    bot.sendMessage(id, `Assalomu alaykum, ${state.name}!\n\nIltimos, band qilmoqchi bo‘lgan sanani kiriting (YYYY.MM.DD formatda):`, {
-      reply_markup: {
-        inline_keyboard: [[{ text: today, callback_data: `date_${today}` }]]
-      }
-    });
-    return;
+  row.push({ text: dayOnly, callback_data: `date_${fullDate}` });
+
+  // Har 3 ta tugmadan so'ng yangi qator
+  if ((i + 1) % 3 === 0 || i === 14) {
+    buttons.push(row);
+    row = [];
   }
+}
+
+
+  bot.sendMessage(id, `Assalomu alaykum, ${state.name}!\n\nIltimos, band qilmoqchi bo‘lgan kunni tanlang:`, {
+    reply_markup: {
+      inline_keyboard: buttons
+    }
+  });
+
+  return;
+}
+
 
   if (state.step === 'awaiting_time') {
     const match = text.match(/^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/);
@@ -192,7 +204,12 @@ bot.on('callback_query', query => {
     users[id].date = selectedDate;
     users[id].step = 'awaiting_time';
 
-    bot.sendMessage(id, `Siz tanlagan sana: ${formatDate(selectedDate)}\n\n${busyTimes}\n\nIltimos, vaqt oralig‘ini kiriting (masalan: 10:00 - 12:00)`);
+    const selectedMoment = moment(selectedDate, 'YYYY-MM-DD');
+    const day = selectedMoment.date();
+    const monthName = uzMonths[selectedMoment.month()];
+    const formatted = `${day}-${monthName}`;
+
+    bot.sendMessage(id, `Siz tanlagan sana: ${formatted}\n\n${busyTimes}\n\nIltimos, vaqt oralig‘ini kiriting (masalan: 10:00 - 12:00)`);
     bot.answerCallbackQuery(query.id);
   }
 
